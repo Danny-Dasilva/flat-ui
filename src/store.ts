@@ -31,6 +31,7 @@ import { NumberCell } from './components/cells/number';
 import { RawNumberCell } from './components/cells/raw-number';
 import { StringCell } from './components/cells/string';
 import { ColorCell } from './components/cells/color';
+import { ImageCell } from './components/cells/image';
 import { CategoryCell } from './components/cells/category';
 import { StringFilter } from './components/filters/string';
 import { CategoryFilter } from './components/filters/category';
@@ -660,6 +661,27 @@ function generateSchema(data: any[]) {
         if (areMultipleValuesColors) return [metric, 'color'];
       }
 
+      const isImage = (val: any) => {
+        if (typeof val === 'string') {
+          return (
+            (val.startsWith('http') &&
+              /\.(png|jpg|jpeg|gif|svg|webp)($|\?)/i.test(val)) ||
+            val.startsWith('data:image/') ||
+            val.trim().startsWith('<svg')
+          );
+        }
+        return false;
+      };
+      const isFirstValueAnImage = isImage(value);
+      if (isFirstValueAnImage) {
+        const values = data
+          .map((d) => d[metric])
+          .filter((d) => d)
+          .slice(0, 30);
+        const areMultipleValuesImages = !values.find((d) => !isImage(d));
+        if (areMultipleValuesImages) return [metric, 'image'];
+      }
+
       const isFirstValueAnArray = Array.isArray(value);
       if (isFirstValueAnArray) {
         const values = data.map((d) => d[metric]).filter((d) => d);
@@ -798,6 +820,14 @@ export const cellTypeMap = {
     format: (d: string) => d,
     shortFormat: (d: string) => d,
     sortValueType: 'string',
+  },
+  image: {
+    cell: ImageCell,
+    filter: StringFilter,
+    format: (d: string) => d,
+    shortFormat: (d: string) => d?.split('/').pop() || d,
+    sortValueType: 'string',
+    minWidth: 120,
   },
   object: {
     cell: StringCell,
