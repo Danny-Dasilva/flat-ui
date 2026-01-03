@@ -29,15 +29,27 @@ export function HtmlHistogram(props: HistogramProps) {
   } = props;
   const height = 30;
 
-  const { bins } = useMemo(() => {
+  const { bins, isDiscreteInteger } = useMemo(() => {
     const maxBins = maxWidth
       ? Math.max(0, Math.floor(maxWidth / 6) * 0.55)
       : 11;
     let bins = bin().thresholds(maxBins)(original);
 
-    if (original.length < 200) {
-      const uniqueValues = Array.from(new Set(original)).sort(ascending);
-      const numberOfUniqueValues = uniqueValues.length;
+    // Check if all values are integers (like years)
+    const allIntegers = original.every(v => Number.isInteger(v));
+    const uniqueValues = Array.from(new Set(original)).sort(ascending);
+    const numberOfUniqueValues = uniqueValues.length;
+
+    // For discrete integer data (like years), create bins aligned to actual values
+    // This ensures the slider can select exact values
+    const isDiscreteInteger = allIntegers && numberOfUniqueValues > 1 && numberOfUniqueValues <= 200;
+
+    if (isDiscreteInteger) {
+      // Create thresholds that align to the actual unique values
+      // Add 0.5 offset to bin boundaries so each integer gets its own bin
+      const thresholds = uniqueValues.slice(1).map(v => v - 0.5);
+      bins = bin().thresholds(thresholds)(original);
+    } else if (original.length < 200) {
       if (numberOfUniqueValues > 1 && numberOfUniqueValues < 12) {
         const firstValueSpacing = uniqueValues[1] - uniqueValues[0];
         const areValuesEquallySpaced =
@@ -54,7 +66,7 @@ export function HtmlHistogram(props: HistogramProps) {
         }
       }
     }
-    return { bins };
+    return { bins, isDiscreteInteger };
   }, [original, maxWidth, value]);
 
   const filteredBins = bins.map((bin, binIndex) => {
@@ -158,6 +170,7 @@ export function HtmlHistogram(props: HistogramProps) {
             xScale={xScale}
             rangeValues={rangeValues}
             isFiltered={isFiltered}
+            isDiscreteInteger={isDiscreteInteger}
           />
         </>
       )}
@@ -212,6 +225,7 @@ const BarRange = memo(({
   xScale,
   rangeValues,
   isFiltered,
+  isDiscreteInteger,
 }) => {
   return (
 
@@ -227,8 +241,13 @@ const BarRange = memo(({
             onChange(undefined);
             return;
           }
-          const x0 = xScale.invert(newRange[0]);
-          const x1 = xScale.invert(newRange[1]);
+          let x0 = xScale.invert(newRange[0]);
+          let x1 = xScale.invert(newRange[1]);
+          // Round to integers for discrete integer data (like years)
+          if (isDiscreteInteger) {
+            x0 = Math.round(x0);
+            x1 = Math.round(x1);
+          }
           onChange([x0, x1]);
         }}
         renderTrack={({ props, children }) => (
